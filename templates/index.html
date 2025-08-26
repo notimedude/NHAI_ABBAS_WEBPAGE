@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Swachh SMART - Regional Dashboard</title>
+    <style>
+        :root {
+            --bg-color: #f4f6f8; --card-bg: #ffffff; --border-color: #dee2e6;
+            --text-dark: #212529; --text-light: #6c757d; --header-color: #0056b3;
+            --status-healthy: #28a745; --status-attention: #ffc107; --status-critical: #dc3545;
+        }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background-color: var(--bg-color); color: var(--text-dark); margin: 0; line-height: 1.6;}
+        .container { max-width: 1400px; margin: auto; padding: 20px; }
+        .header { text-align: center; margin-bottom: 30px; }
+        .header h1 { color: var(--header-color); }
+        .district-group { margin-bottom: 40px; }
+        .district-title { font-size: 24px; color: var(--header-color); border-bottom: 2px solid var(--border-color); padding-bottom: 10px; margin-bottom: 20px; }
+        .accordion-item { margin-bottom: 15px; background-color: var(--card-bg); border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.05); border: 1px solid var(--border-color); }
+        .accordion-header { padding: 15px 20px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+        .accordion-header h2 { margin: 0; font-size: 18px; color: var(--header-color); }
+        .status-indicator { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; }
+        .status-dot { width: 20px; height: 20px; border-radius: 50%; }
+        .accordion-content { padding: 0 20px; max-height: 0; overflow: hidden; transition: max-height 0.5s ease-out, padding 0.5s ease-out; }
+        .accordion-item.active .accordion-content { max-height: 1400px; padding: 20px; }
+        .content-section { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border-color); }
+        .grid { display: grid; gap: 20px; }
+        .grid-3-col { grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }
+        .grid-2-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .card { background-color: #fdfdff; padding: 15px; border-radius: 8px; border-left: 4px solid var(--text-light); }
+        .card h4 { margin: 0 0 10px; font-size: 12px; color: var(--text-light); text-transform: uppercase; font-weight: 600; }
+        .card p, .card li, .kpi-item { margin: 0 0 8px; font-size: 16px; font-weight: 500; }
+        .kpi-item { display: flex; justify-content: space-between; align-items: center; }
+        .kpi-pass { color: var(--status-healthy); } .kpi-fail { color: var(--status-critical); }
+        .status-HEALTHY { border-color: var(--status-healthy); } .status-ATTENTION { border-color: var(--status-attention); } .status-CRITICAL { border-color: var(--status-critical); }
+        .dot-HEALTHY { background-color: var(--status-healthy); } .dot-ATTENTION { background-color: var(--status-attention); } .dot-CRITICAL { background-color: var(--status-critical); }
+        .emergency-banner { display: none; background-color: var(--status-critical); color: white; font-weight: bold; text-align: center; padding: 10px; margin-bottom: 20px; border-radius: 6px; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
+        /* Feedback styling */
+        .feedback-list { list-style: none; padding: 0; margin: 0; }
+        .feedback-list li { margin-bottom: 12px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; }
+        .feedback-list img { max-width: 100%; border-radius: 4px; margin-top: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Swachh SMART Regional Dashboard</h1>
+            <p>Live Status for Highway Toilets in Tamil Nadu</p>
+        </div>
+        <div id="dashboard-container"></div>
+    </div>
+
+    <script>
+        const dashboardContainer = document.getElementById('dashboard-container');
+
+        async function renderDashboard() {
+            try {
+                const response = await fetch('/api/all_toilets');
+                const districts = await response.json();
+                const activeItemId = document.querySelector('.accordion-item.active')?.id;
+                dashboardContainer.innerHTML = ''; 
+
+                for (const districtName in districts) {
+                    const group = document.createElement('div');
+                    group.className = 'district-group';
+                    const title = document.createElement('h2');
+                    title.className = 'district-title';
+                    title.textContent = districtName;
+                    group.appendChild(title);
+
+                    districts[districtName].forEach(block => {
+                        const item = document.createElement('div');
+                        item.className = 'accordion-item';
+                        item.id = block.id;
+
+                        const isEmergency = block.gents.sensors.emergency_button_pressed || block.ladies.sensors.emergency_button_pressed;
+                        const createSectionHtml = (sectionData, title) => {
+                            const s = sectionData.sensors;
+                            return `
+                            <div class="card status-${sectionData.decision.status}">
+                                <h4>${title} Details</h4>
+                                <p><strong>Occupancy: ${s.occupancy_status}</strong> (${s.occupancy_duration_mins} mins)</p>
+                                <p><strong>Status: ${sectionData.decision.status}</strong></p>
+                                <p>Door: ${s.door_status} | Footfall: ${s.footfall_count}</p>
+                                <p>Odor: ${s.ammonia_ppm} ppm | Leak: ${s.water_leak_detected ? 'YES' : 'NO'}</p>
+                                <p>Soap: ${s.soap_level_percent}% | Paper: ${s.paper_level_percent}%</p>
+                                <p><small style="color: var(--text-light);"><em>Tickets: ${sectionData.decision.reason}</em></small></p>
+                            </div>`;
+                        };
+                        
+                        const sla = block.sla_status;
+                        const clean_ok = sla.cleanliness_score >= 95;
+                        const consume_ok = sla.consumables_availability >= 99;
+                        const response_ok = sla.response_time_mins <= 30;
+
+                        // NEW: feedback HTML
+                        const feedbackHtml = (block.operations.user_feedbacks || []).map(fb => {
+                            let mediaHtml = '';
+                            if (fb.media && fb.media !== "None") {
+                                if (['.jpg','.jpeg','.png','.gif'].some(ext => fb.media.toLowerCase().endsWith(ext))) {
+                                    mediaHtml = `<br><img src="${fb.media}" alt="feedback media">`;
+                                } else {
+                                    mediaHtml = `<br><small><em>Media attached: ${fb.media.split('_').pop()}</em></small>`;
+                                }
+                            }
+                            return `<li><strong>${'⭐'.repeat(fb.rating)}</strong> ${fb.comment} ${mediaHtml}</li>`;
+                        }).join('');
+
+                        item.innerHTML = `
+                            <div class="accordion-header">
+                                <h2>${block.location_name} (${block.id})</h2>
+                                <div class="status-indicator">
+                                    <div class="status-dot dot-${block.block_status}"></div>
+                                    <span>${block.block_status}</span>
+                                </div>
+                            </div>
+                            <div class="accordion-content">
+                                <div class="emergency-banner" style="display: ${isEmergency ? 'block' : 'none'}">🚨 EMERGENCY BUTTON PRESSED! 🚨</div>
+                                <div class="grid-2-col">
+                                    ${createSectionHtml(block.gents, 'Gents Section')}
+                                    ${createSectionHtml(block.ladies, 'Ladies Section')}
+                                </div>
+                                <div class="content-section grid grid-3-col">
+                                    <div class="card">
+                                        <h4>SLA Compliance</h4>
+                                        <div class="kpi-item">Cleanliness: <span>${sla.cleanliness_score}%</span> <span class="${clean_ok ? 'kpi-pass':'kpi-fail'}">${clean_ok ? 'PASS':'FAIL'}</span></div>
+                                        <div class="kpi-item">Consumables: <span>${sla.consumables_availability}%</span> <span class="${consume_ok ? 'kpi-pass':'kpi-fail'}">${consume_ok ? 'PASS':'FAIL'}</span></div>
+                                        <div class="kpi-item">Response Time: <span>${sla.response_time_mins} mins</span> <span class="${response_ok ? 'kpi-pass':'kpi-fail'}">${response_ok ? 'PASS':'FAIL'}</span></div>
+                                    </div>
+                                    <div class="card"><h4>Overall User Rating</h4><p style="font-size: 24px;">${block.overall_rating} ⭐</p></div>
+                                    <div class="card"><h4>AI Maintenance Predictions</h4><p>${block.ai_predictions.join('<br>')}</p></div>
+                                </div>
+                                <div class="content-section grid grid-3-col">
+                                     <div class="card"><h4>Water & Energy</h4><p>Water Used: ${block.resources.water_used_liters} L</p><p>Solar Gen: ${block.resources.solar_energy_generated_kwh} kWh</p><p>Consumed: ${block.resources.energy_consumed_kwh} kWh</p></div>
+                                     <div class="card"><h4>Geofence SMS Logs</h4><p><small>${block.geofence_logs.join('<br>')}</small></p></div>
+                                     <div class="card"><h4>Last Cleanup</h4><p>${block.operations.last_cleaned_time}</p></div>
+                                </div>
+                                <div class="content-section">
+                                    <div class="card">
+                                        <h4>Full Staff Roster</h4>
+                                        <p><strong>Shift 1 (6AM-2PM):</strong> ${block.operations.staff_roster["Shift 1 (6AM-2PM)"].cleaning.join(', ')} | Security: ${block.operations.staff_roster["Shift 1 (6AM-2PM)"].security}</p>
+                                        <p><strong>Shift 2 (2PM-10PM):</strong> ${block.operations.staff_roster["Shift 2 (2PM-10PM)"].cleaning.join(', ')} | Security: ${block.operations.staff_roster["Shift 2 (2PM-10PM)"].security}</p>
+                                        <p><strong>Shift 3 (10PM-6AM):</strong> ${block.operations.staff_roster["Shift 3 (10PM-6AM)"].cleaning.join(', ')} | Security: ${block.operations.staff_roster["Shift 3 (10PM-6AM)"].security}</p>
+                                    </div>
+                                </div>
+                                <div class="content-section">
+                                    <div class="card">
+                                        <h4>User Feedback</h4>
+                                        <ul class="feedback-list">${feedbackHtml || "<li>No feedback yet.</li>"}</ul>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        group.appendChild(item);
+                    });
+                    dashboardContainer.appendChild(group);
+                }
+
+                if (activeItemId) {
+                    const activeElement = document.getElementById(activeItemId);
+                    if (activeElement) activeElement.classList.add('active');
+                }
+            } catch (error) {
+                console.error('Failed to fetch or render data:', error);
+                dashboardContainer.innerHTML = '<p style="text-align:center;">Error loading dashboard data. Please ensure the backend server is running.</p>';
+            }
+        }
+
+        dashboardContainer.addEventListener('click', function(event) {
+            const header = event.target.closest('.accordion-header');
+            if (!header) return;
+            const item = header.parentElement;
+            const wasActive = item.classList.contains('active');
+            dashboardContainer.querySelectorAll('.accordion-item').forEach(i => i.classList.remove('active'));
+            if (!wasActive) {
+                item.classList.add('active');
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            renderDashboard();
+            setInterval(renderDashboard, 15000);
+        });
+    </script>
+</body>
+</html>

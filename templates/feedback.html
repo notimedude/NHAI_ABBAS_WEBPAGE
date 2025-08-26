@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Swachh SMART - Submit Feedback</title>
+    <style>
+        :root {
+            --bg-color: #f4f6f8; --card-bg: #ffffff; --border-color: #dee2e6;
+            --text-dark: #212529; --text-light: #6c757d; --header-color: #0056b3;
+            --button-color: #0056b3; --button-text: #ffffff; --star-color: #ffc107;
+        }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background-color: var(--bg-color); color: var(--text-dark); margin: 0; padding: 20px; }
+        .container { max-width: 600px; margin: auto; background-color: var(--card-bg); padding: 20px 30px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.05); }
+        h1 { color: var(--header-color); text-align: center; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; font-weight: 600; margin-bottom: 8px; }
+        input, select, textarea { width: 100%; padding: 12px; border-radius: 6px; border: 1px solid var(--border-color); font-size: 16px; font-family: inherit; box-sizing: border-box; }
+        textarea { resize: vertical; min-height: 100px; }
+        .rating-group { display: flex; flex-direction: row-reverse; justify-content: center; }
+        .rating-group input { display: none; }
+        .rating-group label { font-size: 30px; color: var(--border-color); cursor: pointer; transition: color 0.2s; }
+        .rating-group input:checked ~ label, .rating-group label:hover, .rating-group label:hover ~ label { color: var(--star-color); }
+        button { width: 100%; padding: 15px; font-size: 18px; font-weight: 600; color: var(--button-text); background-color: var(--button-color); border: none; border-radius: 6px; cursor: pointer; }
+        #thank-you-message { text-align: center; padding: 40px; font-size: 20px; color: var(--header-color); display: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="feedback-form">
+            <h1>Submit Feedback</h1>
+            <p style="text-align: center; color: var(--text-light);">Help us improve our facilities. Your feedback is valuable.</p>
+            <form onsubmit="submitFeedback(event)">
+                <div class="form-group">
+                    <label for="toilet-id">Select Location</label>
+                    <select id="toilet-id" name="toilet_id" required>
+                        <option value="">-- Please select a location --</option>
+                        {% for id, info in locations.items() %}
+                        <option value="{{ id }}">{{ info.name }} ({{ id }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Your Rating</label>
+                    <div class="rating-group">
+                        <input type="radio" id="star5" name="rating" value="5" required><label for="star5">⭐</label>
+                        <input type="radio" id="star4" name="rating" value="4"><label for="star4">⭐</label>
+                        <input type="radio" id="star3" name="rating" value="3"><label for="star3">⭐</label>
+                        <input type="radio" id="star2" name="rating" value="2"><label for="star2">⭐</label>
+                        <input type="radio" id="star1" name="rating" value="1"><label for="star1">⭐</label>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="comment">Review / Complaint</label>
+                    <textarea id="comment" name="comment" placeholder="உங்கள் கருத்துக்களை இங்கே தட்டச்சு செய்யவும்..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="media-file">Upload Photo / Video / Voice Note</label>
+                    <input type="file" id="media-file" name="media_file" accept="image/*,video/*,audio/*">
+                </div>
+                <div class="form-group">
+                    <label for="contact">Phone Number or Email ID</label>
+                    <input type="text" id="contact" name="contact" placeholder="For official follow-up" required>
+                </div>
+                <button type="submit">Submit Feedback</button>
+            </form>
+        </div>
+        <div id="thank-you-message">
+            <h2>Thank You!</h2><p>Your feedback has been submitted successfully.</p>
+        </div>
+    </div>
+    <script>
+        async function submitFeedback(event) {
+            event.preventDefault();
+            const form = event.target;
+            const formData = new FormData(form);
+            try {
+                const response = await fetch('/api/submit_feedback', { method: 'POST', body: formData });
+                const result = await response.json();
+                if (result.status === 'success') {
+                    document.getElementById('feedback-form').style.display = 'none';
+                    document.getElementById('thank-you-message').style.display = 'block';
+                } else {
+                    alert('Submission failed: ' + result.message);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred. Please try again.');
+            }
+        }
+    </script>
+</body>
+</html>
